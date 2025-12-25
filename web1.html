@@ -1,0 +1,119 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>Parking Monitor — MQTT (HiveMQ)</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <style>
+    body { font-family: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial; margin: 16px; }
+    h1 { font-size: 1.4rem; margin-bottom: 8px; }
+    #grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; max-width: 900px; }
+    .slot { padding: 12px; border-radius: 10px; box-shadow: 0 2px 6px rgba(0,0,0,0.08); text-align:center; }
+    .slot h2 { margin: 6px 0; font-size: 1.1rem; }
+    .status { font-weight: 700; margin-top: 6px; }
+    .occupied { background: linear-gradient(90deg,#ffdddd,#ffd6d6); border: 1px solid #ffb3b3; color: #9a0000; }
+    .free { background: linear-gradient(90deg,#ddffea,#d6ffec); border: 1px solid #b3ffd6; color: #00663a; }
+    .distance { margin-top: 8px; font-size: 0.95rem; color: #333; }
+    #connStatus { margin-bottom: 12px; font-size: 0.95rem; }
+    footer { margin-top: 16px; color:#666; font-size:0.9rem; }
+    @media (max-width:600px) {
+      #grid { grid-template-columns: repeat(2,1fr); }
+    }
+  </style>
+</head>
+<body>
+  <h1>Parking Monitor (MQTT) — HiveMQ</h1>
+  <div id="connStatus">Connecting to MQTT broker...</div>
+  <div id="grid">
+    <!-- 6 slots -->
+    <div class="slot free" id="slot-1"><h2>Slot 1</h2><div class="status">Free</div><div class="distance">—</div></div>
+    <div class="slot free" id="slot-2"><h2>Slot 2</h2><div class="status">Free</div><div class="distance">—</div></div>
+    <div class="slot free" id="slot-3"><h2>Slot 3</h2><div class="status">Free</div><div class="distance">—</div></div>
+    <div class="slot free" id="slot-4"><h2>Slot 4</h2><div class="status">Free</div><div class="distance">—</div></div>
+    <div class="slot free" id="slot-5"><h2>Slot 5</h2><div class="status">Free</div><div class="distance">—</div></div>
+    <div class="slot free" id="slot-6"><h2>Slot 6</h2><div class="status">Free</div><div class="distance">—</div></div>
+  </div>
+
+  <footer>
+    Broker: <code>broker.hivemq.com</code> via WebSocket <code>ws://broker.hivemq.com:8000/mqtt</code><br>
+    Topics: <code>parking/slot/1</code> … <code>parking/slot/6</code>
+  </footer>
+
+  <!-- mqtt.js from CDN -->
+  <script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script>
+  <script>
+    // Broker ws url (public HiveMQ)
+    const brokerUrl = 'ws://broker.hivemq.com:8000/mqtt';
+    const options = {
+      keepalive: 30,
+      reconnectPeriod: 4000,
+      clientId: 'web-client-' + Math.random().toString(16).substr(2,8)
+      // If you have username/password, add here:
+      // username: 'xxx', password: 'yyy'
+    };
+
+    const connStatusEl = document.getElementById('connStatus');
+
+    const client = mqtt.connect(brokerUrl, options);
+
+    client.on('connect', function () {
+      connStatusEl.textContent = 'Connected to broker';
+      // subscribe to all slot topics
+      client.subscribe('parking/slot/+', function (err) {
+        if (err) connStatusEl.textContent = 'Subscribe error: ' + err;
+      });
+    });
+
+    client.on('reconnect', function() {
+      connStatusEl.textContent = 'Reconnecting...';
+    });
+
+    client.on('offline', function() {
+      connStatusEl.textContent = 'Offline';
+    });
+
+    client.on('error', function (err) {
+      connStatusEl.textContent = 'Error: ' + (err && err.message ? err.message : err);
+      console.error('MQTT error', err);
+    });
+
+    client.on('message', function (topic, message) {
+      // message is Buffer
+      try {
+        const payload = JSON.parse(message.toString());
+        // topic like parking/slot/1
+        const parts = topic.split('/');
+        const slotNum = parseInt(parts[2], 10);
+        updateSlot(slotNum, payload);
+      } catch (e) {
+        console.error('Invalid payload', e, message.toString());
+      }
+    });
+
+    function updateSlot(slotNum, payload) {
+      if (!slotNum || slotNum < 1 || slotNum > 6) return;
+      const el = document.getElementById('slot-' + slotNum);
+      if (!el) return;
+      const statusEl = el.querySelector('.status');
+      const distEl = el.querySelector('.distance');
+
+      const occupied = payload.occupied === true;
+      if (occupied) {
+        el.classList.remove('free');
+        el.classList.add('occupied');
+        statusEl.textContent = 'Occupied';
+      } else {
+        el.classList.remove('occupied');
+        el.classList.add('free');
+        statusEl.textContent = 'Free';
+      }
+
+      if (payload.distance_cm === null || payload.distance_cm === undefined) {
+        distEl.textContent = 'No reading';
+      } else {
+        distEl.textContent = payload.distance_cm + ' cm';
+      }
+    }
+  </script>
+</body>
+</html>

@@ -1,0 +1,28 @@
+# Build / output
+build/
+dist/
+
+# Arduino / ESP32
+*.elf
+*.bin
+*.map
+
+# Python
+__pycache__/
+*.pyc
+
+# Logs
+*.log
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+Thumbs.db
+.DS_Store
+
+# Video demo (KHÔNG UPLOAD LÊN GITHUB)
+*.mp4
+*.avi
+*.mov
